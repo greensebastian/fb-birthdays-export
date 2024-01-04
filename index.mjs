@@ -1,4 +1,5 @@
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
+import ical, { ICalEventBusyStatus, ICalEventRepeatingFreq } from "ical-generator";
 
 // Aggregated output from facebook graphql BirthdayCometMonthlyBirthdaysRefetchQuery
 const file = readFileSync("tmp/data.json", "utf-8");
@@ -32,5 +33,31 @@ function extractByKey(out, obj, searchKey, searchVal) {
   }
 }
 
-console.log(users);
-console.log(birthdates);
+console.log('Birthdates caught: ', birthdates.length);
+
+const tzid = "Europe/Stockholm";
+
+const calendar = ical({ name: "Facebook birthdays", timezone: tzid });
+
+const events = Array.from(birthdates.entries()).map(([userId, bd]) => {
+    const month = bd.birthdate.month - 1;
+    const day = bd.birthdate.day;
+
+    const ev = ical().createEvent({
+        start: new Date(Date.UTC(bd.birthdate.year || new Date().getUTCFullYear(), month, day)),
+        allDay: true,
+        id: `facebook-userid-${userId}`,
+        summary: `🎂 ${bd.name}`,
+        busystatus: ICalEventBusyStatus.FREE,
+        repeating: {
+            freq: ICalEventRepeatingFreq.YEARLY
+        },
+        url: bd.url,
+    })
+
+    return ev;
+});
+
+calendar.events(events);
+
+writeFileSync("tmp/out.ical", calendar.toString());
